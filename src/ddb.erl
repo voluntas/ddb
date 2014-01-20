@@ -8,6 +8,7 @@
 -export([list_tables/1]).
 -export([create_table/4]).
 -export([delete_table/2]).
+-export([update_item/5]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -88,7 +89,7 @@ x_amz_target(batch_write_item) ->
 x_amz_target(create_table) ->
     <<"DynamoDB_20120810.CreateTable">>;
 x_amz_target(delete_item) ->
-    <<"DynamoDB_20120810.DeleteItem">>;
+    error(not_implemented);
 x_amz_target(delete_table) ->
     <<"DynamoDB_20120810.DeleteTable">>;
 x_amz_target(describe_table) ->
@@ -104,7 +105,7 @@ x_amz_target(query) ->
 x_amz_target(scan) ->
     error(not_implemented);
 x_amz_target(update_item) ->
-    error(not_implemented);
+    <<"DynamoDB_20120810.UpdateItem">>;
 x_amz_target(update_table) ->
     error(not_implemented);
 x_amz_target(_OperationName) ->
@@ -203,6 +204,36 @@ delete_table_payload(TableName) ->
     jsonx:encode(Json).
 
 
+update_item(#ddb_connection{access_key_id = AccessKeyId,
+                            secret_access_key = SecretAccessKey,
+                            service = Service}, TableName, Key, Value, AttributeUpdates) ->
+    Region = <<"ap-northeast-1">>,
+    Target = x_amz_target(update_item),
+    Host = <<"127.0.0.1:8000">>,
+    %% Host = host(Service, Region),
+    Payload = update_item_payload(TableName, Key, Value, AttributeUpdates),
+    ?debugVal(Payload),
+    post(AccessKeyId, SecretAccessKey, Host, Payload, Service, Region, Target).
+
+
+%% AttributeUpdates [{AttributeName, Action, Value}] 
+update_item_payload(TableName, Key, Value, AttributeUpdates) ->
+    F = fun({AttributeName, Action, V}) when is_binary(Value) ->
+                %% FIXME(nakai): S 固定
+                {AttributeName, [{<<"Action">>, Action}, {<<"Value">>, [{<<"S">>, V}]}]}
+        end,
+    AttributeUpdates1 = lists:map(F, AttributeUpdates),
+    ?debugVal(AttributeUpdates1),
+    %% FIXME(nakai): S 固定
+    Json = [{<<"TableName">>, TableName},
+            {<<"Key">>, [{Key, [{<<"S">>, Value}]}]},
+            {<<"AttributeUpdates">>, AttributeUpdates1}],
+    ?debugVal(Json),
+    jsonx:encode(Json).
+
+
+
+
 -ifdef(TEST).
 
 get_item_test() ->
@@ -220,6 +251,7 @@ get_item_test() ->
     ddb:put_item(C, <<"users">>, [{<<"user_id">>, <<"USER-ID">>},
                                   {<<"password">>, <<"PASSWORD">>},
                                   {<<"gender">>, <<"GENDER">>}]),
+    ddb:update_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>, [{<<"gender">>, <<"PUT">>, <<"gender">>}]),
     ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>),
     ddb:delete_table(C, <<"users">>),
 
