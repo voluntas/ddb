@@ -351,12 +351,10 @@ connection_local_test() ->
                  ddb:put_item(C, <<"users">>, [{<<"user_id">>, <<"USER-ID">>},
                                                {<<"password">>, <<"PASSWORD">>},
                                                {<<"gender">>, <<"GENDER">>}])),
-    %% ?assertMatch({error, {_, _}},
-    ?debugVal(
+    ?assertMatch({error, {_, _}},
                  ddb:put_item(C, <<"users">>, [{<<"user_id">>, <<"USER-ID">>},
                                                {<<"password">>, <<"PASSWORD">>},
                                                {<<"gender">>, <<"GENDER">>}])),
-                %% ),
     ?assertEqual(ok,
                  ddb:update_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>,
                                  [{<<"gender">>, <<"PUT">>, <<"gender">>}])),
