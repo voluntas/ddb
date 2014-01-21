@@ -139,6 +139,7 @@ delete_table_payload(TableName) ->
     jsonx:encode(Json).
 
 
+-spec update_item(#ddb_config{}, binary(), binary(), binary(), [{binary(), binary(), binary()}]) -> term().
 update_item(Config, TableName, Key, Value, AttributeUpdates) ->
     Target = x_amz_target(update_item),
     Payload = update_item_payload(TableName, Key, Value, AttributeUpdates),
@@ -157,7 +158,6 @@ update_item_payload(TableName, Key, Value, AttributeUpdates) ->
             {<<"Key">>, [{Key, [{<<"S">>, Value}]}]},
             {<<"AttributeUpdates">>, AttributeUpdates1}],
     jsonx:encode(Json).
-
 
 
 -spec x_amz_target(atom()) -> binary().
