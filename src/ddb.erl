@@ -65,7 +65,14 @@ connection_local(Host, Port) ->
 put_item(Config, TableName, Item) ->
     Target = x_amz_target(put_item),
     Payload = put_item_payload(TableName, Item),
-    post(Config, Target, Payload).
+    case post(Config, Target, Payload) of
+        {ok, _Json} ->
+            ?debugVal(_Json),
+            ok;
+        {error, Reason} ->
+            ?debugVal(Reason),
+            error(Reason)
+    end.
 
 
 put_item_payload(TableName, Item) ->
@@ -73,7 +80,6 @@ put_item_payload(TableName, Item) ->
                 {Name, [{<<"S">>, Value}]}
         end,
     Item1 = lists:map(F, Item),
-
     Json = [{<<"TableName">>, TableName},
             {<<"Item">>, Item1}],
     jsonx:encode(Json).
@@ -83,7 +89,20 @@ put_item_payload(TableName, Item) ->
 get_item(Config, TableName, Key, Value) ->
     Target = x_amz_target(get_item),
     Payload = get_item_payload(TableName, Key, Value),
-    post(Config, Target, Payload).
+    case post(Config, Target, Payload) of
+        {ok, []} ->
+            not_found;
+        {ok, Json} ->
+            %% XXX(nakai): Item はあえて出している
+            Item = proplists:get_value(<<"Item">>, Json),
+            F = fun({AttributeName, [{_T, V}]}) ->
+                        {AttributeName, V}
+                end,
+            lists:map(F, Item);
+        {error, Reason} ->
+            ?debugVal(Reason),
+            error(Reason)
+    end.
 
 %% get_item_payload(TableName, Key, Value, AttributesToGet) ->
 get_item_payload(TableName, Key, Value) ->
@@ -95,16 +114,31 @@ get_item_payload(TableName, Key, Value) ->
     jsonx:encode(Json).
 
 
+-spec list_tables(#ddb_config{}) -> [binary()].
 list_tables(Config) ->
     Target = x_amz_target(list_tables),
     Payload = jsonx:encode({[]}),
-    post(Config, Target, Payload).
+    case post(Config, Target, Payload) of
+        {ok, Json} ->
+            ?debugVal(Json),
+            proplists:get_value(<<"TableNames">>, Json);
+        {error, Reason} ->
+            ?debugVal(Reason),
+            error(Reason)
+    end.
 
 
 create_table(Config, TableName, AttributeName, KeyType) ->
     Target = x_amz_target(create_table),
     Payload = create_table_payload(TableName, AttributeName, KeyType),
-    post(Config, Target, Payload).
+    case post(Config, Target, Payload) of
+        {ok, _Json} ->
+            ?debugVal(_Json),
+            ok;
+        {error, Reason} ->
+            ?debugVal(Reason),
+            error(Reason)
+    end.
 
 %% KeyType HASH RANGE
 create_table_payload(TableName, AttributeName, KeyType) ->
@@ -132,7 +166,14 @@ create_table_payload(TableName, AttributeName, KeyType) ->
 delete_item(Config, TableName, Key, Value) ->
     Target = x_amz_target(delete_item),
     Payload = delete_item_payload(TableName, Key, Value),
-    post(Config, Target, Payload).
+    case post(Config, Target, Payload) of
+        {ok, _Json} ->
+            ?debugVal(_Json),
+            ok;
+        {error, Reason} ->
+            ?debugVal(Reason),
+            error(Reason)
+    end.
 
 
 delete_item_payload(TableName, Key, Value) ->
@@ -157,7 +198,14 @@ delete_table_payload(TableName) ->
 update_item(Config, TableName, Key, Value, AttributeUpdates) ->
     Target = x_amz_target(update_item),
     Payload = update_item_payload(TableName, Key, Value, AttributeUpdates),
-    post(Config, Target, Payload).
+    case post(Config, Target, Payload) of
+        {ok, _Json} ->
+            ?debugVal(_Json),
+            ok;
+        {error, Reason} ->
+            ?debugVal(Reason),
+            error(Reason)
+    end.
 
 
 %% AttributeUpdates [{AttributeName, Action, Value}] 
@@ -230,7 +278,8 @@ post(#ddb_config{access_key_id = AccessKeyId,
     case hackney:post(Url, Headers1, Payload) of
         {ok, 200, _RespHeaders, ClientRef} ->
             {ok, Body} = hackney:body(ClientRef),
-            jsonx:decode(Body, [{format, proplist}]);
+            ?debugVal(Body),
+            {ok, jsonx:decode(Body, [{format, proplist}])};
         {ok, _StatusCode, _RespHeaders, ClientRef} ->
             io:format("~p~n", [hackney:body(ClientRef)]),
             ?debugVal(_StatusCode),
@@ -285,14 +334,23 @@ connection_local_test() ->
     application:start(hackney),
 
     C = ddb:connection_local(<<"localhost">>, 8000),
-    ?assertEqual([{<<"TableNames">>, []}], ddb:list_tables(C)),
-    ddb:create_table(C, <<"users">>, <<"user_id">>, <<"HASH">>),
-    ddb:put_item(C, <<"users">>, [{<<"user_id">>, <<"USER-ID">>},
-                                  {<<"password">>, <<"PASSWORD">>},
-                                  {<<"gender">>, <<"GENDER">>}]),
-    ddb:update_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>, [{<<"gender">>, <<"PUT">>, <<"gender">>}]),
-    ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>),
+    ?assertEqual([], ddb:list_tables(C)),
+    ?assertEqual(ok,
+                 ddb:create_table(C, <<"users">>, <<"user_id">>, <<"HASH">>)),
+    ?assertEqual(ok,
+                 ddb:put_item(C, <<"users">>, [{<<"user_id">>, <<"USER-ID">>},
+                                               {<<"password">>, <<"PASSWORD">>},
+                                               {<<"gender">>, <<"GENDER">>}])),
+    ?assertEqual(ok,
+                 ddb:update_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>,
+                                 [{<<"gender">>, <<"PUT">>, <<"gender">>}])),
+    ?assertEqual([{<<"gender">>, <<"gender">>},
+                  {<<"user_id">>, <<"USER-ID">>},
+                  {<<"password">>, <<"PASSWORD">>}],
+                 ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
     ddb:delete_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>),
+    ?assertEqual(not_found,
+                 ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
     ddb:delete_table(C, <<"users">>),
 
     application:stop(crypto),
