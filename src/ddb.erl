@@ -3,11 +3,12 @@
 -export([connection/4]).
 -export([connection_local/0, connection_local/2]).
 
--export([put_item/3]).
+-export([create_table/4]).
+-export([delete_item/4]).
+-export([delete_table/2]).
 -export([get_item/4]).
 -export([list_tables/1]).
--export([create_table/4]).
--export([delete_table/2]).
+-export([put_item/3]).
 -export([update_item/5]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -128,6 +129,19 @@ create_table_payload(TableName, AttributeName, KeyType) ->
     jsonx:encode(Json).
 
 
+delete_item(Config, TableName, Key, Value) ->
+    Target = x_amz_target(delete_item),
+    Payload = delete_item_payload(TableName, Key, Value),
+    post(Config, Target, Payload).
+
+
+delete_item_payload(TableName, Key, Value) ->
+    %% FIXME(nakai): S 固定
+    Json = [{<<"TableName">>, TableName},
+            {<<"Key">>, [{Key, [{<<"S">>, Value}]}]}],
+    jsonx:encode(Json).
+
+
 delete_table(Config, TableName) ->
     Target = x_amz_target(delete_table),
     Payload = delete_table_payload(TableName),
@@ -168,7 +182,7 @@ x_amz_target(batch_write_item) ->
 x_amz_target(create_table) ->
     <<"DynamoDB_20120810.CreateTable">>;
 x_amz_target(delete_item) ->
-    error(not_implemented);
+    <<"DynamoDB_20120810.DeleteItem">>;
 x_amz_target(delete_table) ->
     <<"DynamoDB_20120810.DeleteTable">>;
 x_amz_target(describe_table) ->
@@ -278,6 +292,7 @@ connection_local_test() ->
                                   {<<"gender">>, <<"GENDER">>}]),
     ddb:update_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>, [{<<"gender">>, <<"PUT">>, <<"gender">>}]),
     ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>),
+    ddb:delete_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>),
     ddb:delete_table(C, <<"users">>),
 
     application:stop(crypto),
