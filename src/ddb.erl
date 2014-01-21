@@ -71,7 +71,7 @@ put_item(Config, TableName, Item) ->
             ok;
         {error, Reason} ->
             ?debugVal(Reason),
-            error(Reason)
+            {error, Reason}
     end.
 
 
@@ -80,7 +80,14 @@ put_item_payload(TableName, Item) ->
                 {Name, [{<<"S">>, Value}]}
         end,
     Item1 = lists:map(F, Item),
+
+    F1 = fun({Name, Value}) when is_binary(Value) ->
+                 %% FIXME(nakai): 上書き禁止を固定している
+                {Name, [{<<"Exists">>, false}]}
+        end,
+    Expected1 = lists:map(F1, Item),
     Json = [{<<"TableName">>, TableName},
+            {<<"Expected">>, Expected1},
             {<<"Item">>, Item1}],
     jsonx:encode(Json).
 
@@ -281,10 +288,13 @@ post(#ddb_config{access_key_id = AccessKeyId,
             ?debugVal(Body),
             {ok, jsonx:decode(Body, [{format, proplist}])};
         {ok, _StatusCode, _RespHeaders, ClientRef} ->
-            io:format("~p~n", [hackney:body(ClientRef)]),
             ?debugVal(_StatusCode),
             ?debugVal(_RespHeaders),
-            error(not_implemented)
+            {ok, Body} = hackney:body(ClientRef),
+            Json = jsonx:decode(Body, [{format, proplist}]),
+            Type = proplists:get_value(<<"__type">>, Json),
+            Message = proplists:get_value(<<"Message">>, Json),
+            {error, {Type, Message}}
     end.
 
 
@@ -341,6 +351,12 @@ connection_local_test() ->
                  ddb:put_item(C, <<"users">>, [{<<"user_id">>, <<"USER-ID">>},
                                                {<<"password">>, <<"PASSWORD">>},
                                                {<<"gender">>, <<"GENDER">>}])),
+    %% ?assertMatch({error, {_, _}},
+    ?debugVal(
+                 ddb:put_item(C, <<"users">>, [{<<"user_id">>, <<"USER-ID">>},
+                                               {<<"password">>, <<"PASSWORD">>},
+                                               {<<"gender">>, <<"GENDER">>}])),
+                %% ),
     ?assertEqual(ok,
                  ddb:update_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>,
                                  [{<<"gender">>, <<"PUT">>, <<"gender">>}])),
@@ -348,7 +364,8 @@ connection_local_test() ->
                   {<<"user_id">>, <<"USER-ID">>},
                   {<<"password">>, <<"PASSWORD">>}],
                  ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
-    ddb:delete_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>),
+    ?assertEqual(ok,
+                 ddb:delete_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
     ?assertEqual(not_found,
                  ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
     ddb:delete_table(C, <<"users">>),
