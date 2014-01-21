@@ -227,7 +227,41 @@ post(#ddb_config{access_key_id = AccessKeyId,
 
 -ifdef(TEST).
 
-get_item_test() ->
+%% connection_test() ->
+%% 
+%%     AccessKeyId = list_to_binary(os:getenv("AWS_ACCESS_KEY_ID")),
+%%     SecretAccessKey = list_to_binary(os:getenv("AWS_SECRET_ACCESS_KEY")),
+%%     Region = <<"ap-northeast-1">>,
+%%     IsSecure = true,
+%% 
+%%     application:start(crypto),
+%%     application:start(asn1),
+%%     application:start(public_key),
+%%     application:start(ssl),
+%%     application:start(mimetypes),
+%%     application:start(hackney_lib),
+%%     application:start(hackney),
+%% 
+%%     C = ddb:connection(AccessKeyId, SecretAccessKey, Region, IsSecure),
+%%     ddb:put_item(C, <<"users">>, [{<<"user_id">>, <<"USER-ID">>},
+%%                                   {<<"password">>, <<"PASSWORD">>},
+%%                                   {<<"gender">>, <<"GENDER">>}]),
+%%     ddb:update_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>, [{<<"gender">>, <<"PUT">>, <<"gender">>}]),
+%%     ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>),
+%% 
+%%     application:stop(crypto),
+%%     application:stop(asn1),
+%%     application:stop(public_key),
+%%     application:stop(ssl),
+%%     application:stop(mimetypes),
+%%     application:stop(hackney_lib),
+%%     application:stop(hackney),
+%% 
+%%     ok.
+
+
+
+connection_local_test() ->
     application:start(crypto),
     application:start(asn1),
     application:start(public_key),
