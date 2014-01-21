@@ -6,22 +6,17 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+%% 20110909T233600Z
+-spec iso_8601_basic_format(erlang:timestamp()) -> binary().
 iso_8601_basic_format(Timestamp) ->
-    %% 20110909T233600Z
     {{Year, Month, Day}, {Hour, Min, Sec}} = calendar:now_to_universal_time(Timestamp),
     list_to_binary(io_lib:format("~4.10.0B~2.10.0B~2.10.0BT~2.10.0B~2.10.0B~2.10.0BZ",
                                  [Year, Month, Day, Hour, Min, Sec])).
 
 
-%% FIXME(nakai): ok は適当
 -spec signature_version_4_signing(binary(), binary(), binary(), [{binary(), binary()}], binary(), binary(), binary()) -> [{binary(), binary()}]. 
 signature_version_4_signing(DateTime, AccessKeyId, SecretAccessKey, Headers, Payload, Service, Region) ->
     %% TODO(nakai): x-amz-security-token
-
-    %% [{<<"host">>, <<"dynamodb.ap-northeast-1.amazonaws.com">>},
-    %%  {<<"content-type">>, <<"application/x-amz-json-1.0">>},
-    %%  {<<"x-amz-content-sha256">>, },
-    %%  {<<"x-amz-target">>, <<"DynamoDB_20120810.PutItem">>}]
 
     Headers1 = [{<<"x-amz-date">>, DateTime}|Headers],
     {CanonicalHeaders, SignedHeaders} = canonical_headers(Headers1),
