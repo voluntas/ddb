@@ -83,10 +83,10 @@ put_item_payload(TableName, Item) ->
         end,
     Item1 = lists:map(F, Item),
 
-    F1 = fun({Name, Value}) when is_binary(Value) ->
+    F1 = fun({Name, _Value}) ->
                  %% FIXME(nakai): 上書き禁止を固定している
                 {Name, [{<<"Exists">>, false}]}
-        end,
+         end,
     Expected1 = lists:map(F1, Item),
     Json = [{<<"TableName">>, TableName},
             {<<"Expected">>, Expected1},
@@ -232,15 +232,15 @@ update_item(Config, TableName, Key, Value, AttributeUpdates) ->
 %% AttributeUpdates [{AttributeName, Action, Value}] 
 update_item_payload(TableName, Key, Value, AttributeUpdates) when is_binary(Value) ->
     update_item_payload(TableName, Key, <<"S">>, Value, AttributeUpdates);
-update_item_payload(TableName, Key, Value, AttributeUpdates) ->
+update_item_payload(TableName, Key, Value, AttributeUpdates) when is_integer(Value) ->
     update_item_payload(TableName, Key, <<"N">>, Value, AttributeUpdates).
 
 
 update_item_payload(TableName, Key, Type, Value, AttributeUpdates) ->
-    F = fun({AttributeName, Action, V}) when is_binary(Value) ->
+    F = fun({AttributeName, Action, V}) when is_binary(V) ->
                 {AttributeName, [{<<"Action">>, Action},
                                  {<<"Value">>, [{<<"S">>, V}]}]};
-           ({AttributeName, Action, V}) when is_integer(Value) ->
+           ({AttributeName, Action, V}) when is_integer(V) ->
                 {AttributeName, [{<<"Action">>, Action},
                                  {<<"Value">>, [{<<"N">>, integer_to_binary(V)}]}]}
         end,
@@ -372,15 +372,19 @@ connection_local_test() ->
     ?assertEqual(ok,
                  ddb:put_item(C, <<"users">>, [{<<"user_id">>, <<"USER-ID">>},
                                                {<<"password">>, <<"PASSWORD">>},
-                                               {<<"gender">>, <<"GENDER">>}])),
+                                               {<<"gender">>, 1}])),
     ?assertMatch({error, {_, _}},
                  ddb:put_item(C, <<"users">>, [{<<"user_id">>, <<"USER-ID">>},
                                                {<<"password">>, <<"PASSWORD">>},
-                                               {<<"gender">>, <<"GENDER">>}])),
+                                               {<<"gender">>, 1}])),
+    ?assertEqual([{<<"gender">>, 1},
+                  {<<"user_id">>, <<"USER-ID">>},
+                  {<<"password">>, <<"PASSWORD">>}],
+                 ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
     ?assertEqual(ok,
                  ddb:update_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>,
-                                 [{<<"gender">>, <<"PUT">>, <<"gender">>}])),
-    ?assertEqual([{<<"gender">>, <<"gender">>},
+                                 [{<<"gender">>, <<"PUT">>, 0}])),
+    ?assertEqual([{<<"gender">>, 0},
                   {<<"user_id">>, <<"USER-ID">>},
                   {<<"password">>, <<"PASSWORD">>}],
                  ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
