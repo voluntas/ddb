@@ -77,7 +77,9 @@ put_item(Config, TableName, Item) ->
 
 put_item_payload(TableName, Item) ->
     F = fun({Name, Value}) when is_binary(Value) ->
-                {Name, [{<<"S">>, Value}]}
+                {Name, [{<<"S">>, Value}]};
+           ({Name, Value}) when is_integer(Value) ->
+                {Name, [{<<"N">>, integer_to_binary(Value)}]}
         end,
     Item1 = lists:map(F, Item),
 
@@ -102,7 +104,9 @@ get_item(Config, TableName, Key, Value) ->
         {ok, Json} ->
             %% XXX(nakai): Item はあえて出している
             Item = proplists:get_value(<<"Item">>, Json),
-            F = fun({AttributeName, [{_T, V}]}) ->
+            F = fun({AttributeName, [{<<"N">>, V}]}) ->
+                        {AttributeName, binary_to_integer(V)};
+                   ({AttributeName, [{_T, V}]}) ->
                         {AttributeName, V}
                 end,
             lists:map(F, Item);
@@ -112,10 +116,15 @@ get_item(Config, TableName, Key, Value) ->
     end.
 
 %% get_item_payload(TableName, Key, Value, AttributesToGet) ->
-get_item_payload(TableName, Key, Value) ->
+get_item_payload(TableName, Key, Value) when is_binary(Value) ->
+    get_item_payload(TableName, Key, <<"S">>, Value);
+get_item_payload(TableName, Key, Value) when is_integer(Value) ->
+    get_item_payload(TableName, Key, <<"N">>, Value).
+
+get_item_payload(TableName, Key, Type, Value) ->
     %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{Key, [{<<"S">>, Value}]}]},
+            {<<"Key">>, [{Key, [{Type, Value}]}]},
             {<<"ConsistentRead">>, true}],
             %% {<<"ReturnConsumedCapacity">>, <<"TOTAL">>}
     jsonx:encode(Json).
@@ -183,10 +192,15 @@ delete_item(Config, TableName, Key, Value) ->
     end.
 
 
-delete_item_payload(TableName, Key, Value) ->
-    %% FIXME(nakai): S 固定
+%% FIXME(nakai): S/N しかない
+delete_item_payload(TableName, Key, Value) when is_binary(Value) ->
+    delete_item_payload(TableName, Key, <<"S">>, Value);
+delete_item_payload(TableName, Key, Value) when is_binary(Value) ->
+    delete_item_payload(TableName, Key, <<"N">>, Value).
+
+delete_item_payload(TableName, Key, Type, Value) ->
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{Key, [{<<"S">>, Value}]}]}],
+            {<<"Key">>, [{Key, [{Type, Value}]}]}],
     jsonx:encode(Json).
 
 
@@ -216,15 +230,23 @@ update_item(Config, TableName, Key, Value, AttributeUpdates) ->
 
 
 %% AttributeUpdates [{AttributeName, Action, Value}] 
+update_item_payload(TableName, Key, Value, AttributeUpdates) when is_binary(Value) ->
+    update_item_payload(TableName, Key, <<"S">>, Value, AttributeUpdates);
 update_item_payload(TableName, Key, Value, AttributeUpdates) ->
+    update_item_payload(TableName, Key, <<"N">>, Value, AttributeUpdates).
+
+
+update_item_payload(TableName, Key, Type, Value, AttributeUpdates) ->
     F = fun({AttributeName, Action, V}) when is_binary(Value) ->
-                %% FIXME(nakai): S 固定
-                {AttributeName, [{<<"Action">>, Action}, {<<"Value">>, [{<<"S">>, V}]}]}
+                {AttributeName, [{<<"Action">>, Action},
+                                 {<<"Value">>, [{<<"S">>, V}]}]};
+           ({AttributeName, Action, V}) when is_integer(Value) ->
+                {AttributeName, [{<<"Action">>, Action},
+                                 {<<"Value">>, [{<<"N">>, integer_to_binary(V)}]}]}
         end,
     AttributeUpdates1 = lists:map(F, AttributeUpdates),
-    %% FIXME(nakai): S 固定
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{Key, [{<<"S">>, Value}]}]},
+            {<<"Key">>, [{Key, [{Type, Value}]}]},
             {<<"AttributeUpdates">>, AttributeUpdates1}],
     jsonx:encode(Json).
 
