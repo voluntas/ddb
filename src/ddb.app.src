@@ -1,0 +1,12 @@
+{application, ddb,
+ [
+  {description, ""},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { ddb_app, []}},
+  {env, []}
+ ]}.
