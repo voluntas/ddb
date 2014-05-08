@@ -11,6 +11,8 @@
 -export([put_item/3]).
 -export([update_item/5]).
 
+-export_type([config/0]).
+
 -include_lib("eunit/include/eunit.hrl").
 
 -define(SERVICE, <<"dynamodb">>).
@@ -25,6 +27,8 @@
                      local = false :: boolean(),
                      host :: binary(),
                      port :: inet:port_number()}).
+
+-type config() :: #ddb_config{}.
 
 
 %% http://docs.aws.amazon.com/general/latest/gr/rande.html#ddb_region

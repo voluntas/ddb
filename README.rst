@@ -24,6 +24,7 @@
 
 .. code-block:: erlang
 
+    -spec x_amz_target(atom()) -> binary().
     x_amz_target(batch_get_item) ->
         error(not_implemented);
     x_amz_target(batch_write_item) ->
@@ -47,7 +48,7 @@
     x_amz_target(scan) ->
         error(not_implemented);
     x_amz_target(update_item) ->
-        error(not_implemented);
+        <<"DynamoDB_20120810.UpdateItem">>;
     x_amz_target(update_table) ->
         error(not_implemented);
     x_amz_target(_OperationName) ->
