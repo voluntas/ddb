@@ -19,11 +19,22 @@
 - DynamoDB API の最新バージョンに対応している
 - Signature version 4 に対応している
 
+AmazonDynamo Local
+==================
+
+2014-05-08::
+
+    $ curl -OL http://dynamodb-local.s3-website-us-west-2.amazonaws.com/dynamodb_local_latest
+    $ tar xvfz dynamodb_local_2014-04-24.tar.gz
+    $ cd dynamodb_local_2014-04-24
+    $ java -Djava.library.path=./DynamoDBLocal_lib -jar DynamoDBLocal.jar
+
 実装済
 ======
 
 .. code-block:: erlang
 
+    -spec x_amz_target(atom()) -> binary().
     x_amz_target(batch_get_item) ->
         error(not_implemented);
     x_amz_target(batch_write_item) ->
@@ -47,7 +58,7 @@
     x_amz_target(scan) ->
         error(not_implemented);
     x_amz_target(update_item) ->
-        error(not_implemented);
+        <<"DynamoDB_20120810.UpdateItem">>;
     x_amz_target(update_table) ->
         error(not_implemented);
     x_amz_target(_OperationName) ->

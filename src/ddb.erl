@@ -11,6 +11,8 @@
 -export([put_item/3]).
 -export([update_item/5]).
 
+-export_type([config/0]).
+
 -include_lib("eunit/include/eunit.hrl").
 
 -define(SERVICE, <<"dynamodb">>).
@@ -25,6 +27,8 @@
                      local = false :: boolean(),
                      host :: binary(),
                      port :: inet:port_number()}).
+
+-type config() :: #ddb_config{}.
 
 
 %% http://docs.aws.amazon.com/general/latest/gr/rande.html#ddb_region
@@ -304,7 +308,7 @@ post(#ddb_config{access_key_id = AccessKeyId,
 
     Url = url(IsSecure, Endpoint),
 
-    case hackney:post(Url, Headers1, Payload) of
+    case hackney:post(Url, Headers1, Payload, [{pool, default}]) of
         {ok, 200, _RespHeaders, ClientRef} ->
             {ok, Body} = hackney:body(ClientRef),
             ?debugVal(Body),
@@ -365,6 +369,8 @@ connection_local_test() ->
     application:start(hackney_lib),
     application:start(hackney),
 
+    hackney:start(),
+
     C = ddb:connection_local(<<"localhost">>, 8000),
     ?assertEqual([], ddb:list_tables(C)),
     ?assertEqual(ok,
@@ -383,16 +389,19 @@ connection_local_test() ->
                  ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
     ?assertEqual(ok,
                  ddb:update_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>,
-                                 [{<<"gender">>, <<"PUT">>, 0}])),
+                                 [{<<"gender">>, <<"PUT">>, 0},
+                                  {<<"password">>, <<"PUT">>, <<"PASS">>}])),
     ?assertEqual([{<<"gender">>, 0},
                   {<<"user_id">>, <<"USER-ID">>},
-                  {<<"password">>, <<"PASSWORD">>}],
+                  {<<"password">>, <<"PASS">>}],
                  ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
     ?assertEqual(ok,
                  ddb:delete_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
     ?assertEqual(not_found,
                  ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
     ddb:delete_table(C, <<"users">>),
+
+    hackney:stop(),
 
     application:stop(crypto),
     application:stop(asn1),
@@ -401,6 +410,7 @@ connection_local_test() ->
     application:stop(mimetypes),
     application:stop(hackney_lib),
     application:stop(hackney),
+
 
     ok.
 
