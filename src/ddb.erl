@@ -308,7 +308,7 @@ post(#ddb_config{access_key_id = AccessKeyId,
 
     Url = url(IsSecure, Endpoint),
 
-    case hackney:post(Url, Headers1, Payload) of
+    case hackney:post(Url, Headers1, Payload, [{pool, default}]) of
         {ok, 200, _RespHeaders, ClientRef} ->
             {ok, Body} = hackney:body(ClientRef),
             ?debugVal(Body),
@@ -369,6 +369,8 @@ connection_local_test() ->
     application:start(hackney_lib),
     application:start(hackney),
 
+    hackney:start(),
+
     C = ddb:connection_local(<<"localhost">>, 8000),
     ?assertEqual([], ddb:list_tables(C)),
     ?assertEqual(ok,
@@ -398,6 +400,8 @@ connection_local_test() ->
                  ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
     ddb:delete_table(C, <<"users">>),
 
+    hackney:stop(),
+
     application:stop(crypto),
     application:stop(asn1),
     application:stop(public_key),
@@ -405,6 +409,7 @@ connection_local_test() ->
     application:stop(mimetypes),
     application:stop(hackney_lib),
     application:stop(hackney),
+
 
     ok.
 
