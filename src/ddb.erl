@@ -131,7 +131,7 @@ get_item_payload(TableName, KeyValues) ->
                {Name, [{<<"S">>, Value}]};
            ({Name, Value}) when is_integer(Value) ->
                {Name, [{<<"N">>, Value}]}
-       end,
+        end,
     Json = [{<<"TableName">>, TableName},
             {<<"Key">>, lists:map(F, KeyValues)},
             {<<"ConsistentRead">>, true}],
