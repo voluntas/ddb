@@ -124,13 +124,8 @@ get_item(Config, TableName, HashKey, HashValue) ->
 
 get_item_payload(TableName, HashKey, HashValue) ->
     %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
-    F = fun({Name, Value}) when is_binary(Value) ->
-               {Name, [{<<"S">>, Value}]};
-           ({Name, Value}) when is_integer(Value) ->
-               {Name, [{<<"N">>, Value}]}
-        end,
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [F({HashKey, HashValue})]},
+            {<<"Key">>, [{HashKey, typed_value(HashValue)}]},
             {<<"ConsistentRead">>, true}],
     jsonx:encode(Json).
 
@@ -158,15 +153,16 @@ get_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue) ->
 
 get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue) ->
     %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
-    F = fun({Name, Value}) when is_binary(Value) ->
-               {Name, [{<<"S">>, Value}]};
-           ({Name, Value}) when is_integer(Value) ->
-               {Name, [{<<"N">>, Value}]}
-        end,
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [F({HashKey, HashValue}), F({RangeKey, RangeValue})]},
+            {<<"Key">>, [{HashKey, typed_value(HashValue)}, {RangeKey, typed_value(RangeValue)}]},
             {<<"ConsistentRead">>, true}],
     jsonx:encode(Json).
+
+typed_value(Value) when is_binary(Value) ->
+    [{<<"S">>, Value}];
+typed_value(Value) when is_integer(Value) ->
+    [{<<"N">>, Value}].
+
 
 
 -spec list_tables(#ddb_config{}) -> [binary()].
