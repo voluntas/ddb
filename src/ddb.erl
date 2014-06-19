@@ -105,6 +105,15 @@ put_item_payload(TableName, Item) ->
 get_item(Config, TableName, HashKey, HashValue) ->
     Target = x_amz_target(get_item),
     Payload = get_item_payload(TableName, HashKey, HashValue),
+    get_item_request(Config, Target, Payload).
+
+-spec get_item(#ddb_config{}, binary(), binary(), binary(), binary(), binary()) -> not_found | [{binary(), binary()}].
+get_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue) ->
+    Target = x_amz_target(get_item),
+    Payload = get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue),
+    get_item_request(Config, Target, Payload).
+
+get_item_request(Config, Target, Payload) ->
     case post(Config, Target, Payload) of
         {ok, []} ->
             not_found;
@@ -128,28 +137,6 @@ get_item_payload(TableName, HashKey, HashValue) ->
             {<<"Key">>, [{HashKey, typed_value(HashValue)}]},
             {<<"ConsistentRead">>, true}],
     jsonx:encode(Json).
-
-
--spec get_item(#ddb_config{}, binary(), binary(), binary(), binary(), binary()) -> not_found | [{binary(), binary()}].
-get_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue) ->
-    Target = x_amz_target(get_item),
-    Payload = get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue),
-    case post(Config, Target, Payload) of
-        {ok, []} ->
-            not_found;
-        {ok, Json} ->
-            %% XXX(nakai): Item はあえて出している
-            Item = proplists:get_value(<<"Item">>, Json),
-            F = fun({AttributeName, [{<<"N">>, V}]}) ->
-                        {AttributeName, binary_to_integer(V)};
-                   ({AttributeName, [{_T, V}]}) ->
-                        {AttributeName, V}
-                end,
-            lists:map(F, Item);
-        {error, Reason} ->
-            ?debugVal(Reason),
-            error(Reason)
-    end.
 
 get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue) ->
     %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
