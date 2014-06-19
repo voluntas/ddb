@@ -7,6 +7,7 @@
 -export([delete_item/4]).
 -export([delete_table/2]).
 -export([get_item/4]).
+-export([get_item/6]).
 -export([list_tables/1]).
 -export([put_item/3]).
 -export([update_item/5]).
@@ -62,7 +63,7 @@ connection_local(Host, Port) ->
                 region = <<"ap-northeast-1">>,
                 service = ?SERVICE,
                 local = true,
-                is_secure = false}. 
+                is_secure = false}.
 
 
 -spec put_item(#ddb_config{}, binary(), [{binary(), binary()}]) -> ok.
@@ -98,10 +99,21 @@ put_item_payload(TableName, Item) ->
     jsonx:encode(Json).
 
 
+%% テーブルの主キーはhashタイプ(1要素主キー)と、hash-and-rangeタイプ(2要素で主キー)があり得る
+%% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_CreateTable.html
 -spec get_item(#ddb_config{}, binary(), binary(), binary()) -> not_found | [{binary(), binary()}].
-get_item(Config, TableName, Key, Value) ->
+get_item(Config, TableName, HashKey, HashValue) ->
     Target = x_amz_target(get_item),
-    Payload = get_item_payload(TableName, Key, Value),
+    Payload = get_item_payload(TableName, HashKey, HashValue),
+    get_item_request(Config, Target, Payload).
+
+-spec get_item(#ddb_config{}, binary(), binary(), binary(), binary(), binary()) -> not_found | [{binary(), binary()}].
+get_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue) ->
+    Target = x_amz_target(get_item),
+    Payload = get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue),
+    get_item_request(Config, Target, Payload).
+
+get_item_request(Config, Target, Payload) ->
     case post(Config, Target, Payload) of
         {ok, []} ->
             not_found;
@@ -119,19 +131,25 @@ get_item(Config, TableName, Key, Value) ->
             error(Reason)
     end.
 
-%% get_item_payload(TableName, Key, Value, AttributesToGet) ->
-get_item_payload(TableName, Key, Value) when is_binary(Value) ->
-    get_item_payload(TableName, Key, <<"S">>, Value);
-get_item_payload(TableName, Key, Value) when is_integer(Value) ->
-    get_item_payload(TableName, Key, <<"N">>, Value).
-
-get_item_payload(TableName, Key, Type, Value) ->
+get_item_payload(TableName, HashKey, HashValue) ->
     %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{Key, [{Type, Value}]}]},
+            {<<"Key">>, [{HashKey, typed_value(HashValue)}]},
             {<<"ConsistentRead">>, true}],
-            %% {<<"ReturnConsumedCapacity">>, <<"TOTAL">>}
     jsonx:encode(Json).
+
+get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue) ->
+    %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
+    Json = [{<<"TableName">>, TableName},
+            {<<"Key">>, [{HashKey, typed_value(HashValue)}, {RangeKey, typed_value(RangeValue)}]},
+            {<<"ConsistentRead">>, true}],
+    jsonx:encode(Json).
+
+typed_value(Value) when is_binary(Value) ->
+    [{<<"S">>, Value}];
+typed_value(Value) when is_integer(Value) ->
+    [{<<"N">>, Value}].
+
 
 
 -spec list_tables(#ddb_config{}) -> [binary()].
