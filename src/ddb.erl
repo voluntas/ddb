@@ -6,6 +6,7 @@
 -export([create_table/4]).
 -export([delete_item/4]).
 -export([delete_table/2]).
+-export([get_item/3]).
 -export([get_item/4]).
 -export([list_tables/1]).
 -export([put_item/3]).
@@ -62,7 +63,7 @@ connection_local(Host, Port) ->
                 region = <<"ap-northeast-1">>,
                 service = ?SERVICE,
                 local = true,
-                is_secure = false}. 
+                is_secure = false}.
 
 
 -spec put_item(#ddb_config{}, binary(), [{binary(), binary()}]) -> ok.
@@ -100,8 +101,12 @@ put_item_payload(TableName, Item) ->
 
 -spec get_item(#ddb_config{}, binary(), binary(), binary()) -> not_found | [{binary(), binary()}].
 get_item(Config, TableName, Key, Value) ->
+    get_item(Config, TableName, [{Key, Value}]).
+
+-spec get_item(#ddb_config{}, binary(), [{binary(), binary}]) -> not_found | [{binary(), binary()}].
+get_item(Config, TableName, KeyValues) ->
     Target = x_amz_target(get_item),
-    Payload = get_item_payload(TableName, Key, Value),
+    Payload = get_item_payload(TableName, KeyValues),
     case post(Config, Target, Payload) of
         {ok, []} ->
             not_found;
@@ -119,18 +124,16 @@ get_item(Config, TableName, Key, Value) ->
             error(Reason)
     end.
 
-%% get_item_payload(TableName, Key, Value, AttributesToGet) ->
-get_item_payload(TableName, Key, Value) when is_binary(Value) ->
-    get_item_payload(TableName, Key, <<"S">>, Value);
-get_item_payload(TableName, Key, Value) when is_integer(Value) ->
-    get_item_payload(TableName, Key, <<"N">>, Value).
 
-get_item_payload(TableName, Key, Type, Value) ->
-    %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
+get_item_payload(TableName, KeyValues) ->
+    F = fun({Name, Value}) when is_binary(Value) ->
+               {Name, [{<<"S">>, Value}]};
+           ({Name, Value}) when is_integer(Value) ->
+               {Name, [{<<"N">>, Value}]}
+       end,
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{Key, [{Type, Value}]}]},
+            {<<"Key">>, lists:map(F, KeyValues)},
             {<<"ConsistentRead">>, true}],
-            %% {<<"ReturnConsumedCapacity">>, <<"TOTAL">>}
     jsonx:encode(Json).
 
 
