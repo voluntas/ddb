@@ -126,6 +126,7 @@ get_item(Config, TableName, KeyValues) ->
 
 
 get_item_payload(TableName, KeyValues) ->
+    %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
     F = fun({Name, Value}) when is_binary(Value) ->
                {Name, [{<<"S">>, Value}]};
            ({Name, Value}) when is_integer(Value) ->
