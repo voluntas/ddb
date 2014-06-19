@@ -6,8 +6,8 @@
 -export([create_table/4]).
 -export([delete_item/4]).
 -export([delete_table/2]).
--export([get_item/3]).
 -export([get_item/4]).
+-export([get_item/6]).
 -export([list_tables/1]).
 -export([put_item/3]).
 -export([update_item/5]).
@@ -100,13 +100,9 @@ put_item_payload(TableName, Item) ->
 
 
 -spec get_item(#ddb_config{}, binary(), binary(), binary()) -> not_found | [{binary(), binary()}].
-get_item(Config, TableName, Key, Value) ->
-    get_item(Config, TableName, [{Key, Value}]).
-
--spec get_item(#ddb_config{}, binary(), [{binary(), binary}]) -> not_found | [{binary(), binary()}].
-get_item(Config, TableName, KeyValues) ->
+get_item(Config, TableName, HashKey, HashValue) ->
     Target = x_amz_target(get_item),
-    Payload = get_item_payload(TableName, KeyValues),
+    Payload = get_item_payload(TableName, HashKey, HashValue),
     case post(Config, Target, Payload) of
         {ok, []} ->
             not_found;
@@ -124,8 +120,7 @@ get_item(Config, TableName, KeyValues) ->
             error(Reason)
     end.
 
-
-get_item_payload(TableName, KeyValues) ->
+get_item_payload(TableName, HashKey, HashValue) ->
     %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
     F = fun({Name, Value}) when is_binary(Value) ->
                {Name, [{<<"S">>, Value}]};
@@ -133,7 +128,41 @@ get_item_payload(TableName, KeyValues) ->
                {Name, [{<<"N">>, Value}]}
         end,
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, lists:map(F, KeyValues)},
+            {<<"Key">>, [F({HashKey, HashValue})]},
+            {<<"ConsistentRead">>, true}],
+    jsonx:encode(Json).
+
+
+-spec get_item(#ddb_config{}, binary(), binary(), binary(), binary(), binary()) -> not_found | [{binary(), binary()}].
+get_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue) ->
+    Target = x_amz_target(get_item),
+    Payload = get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue),
+    case post(Config, Target, Payload) of
+        {ok, []} ->
+            not_found;
+        {ok, Json} ->
+            %% XXX(nakai): Item はあえて出している
+            Item = proplists:get_value(<<"Item">>, Json),
+            F = fun({AttributeName, [{<<"N">>, V}]}) ->
+                        {AttributeName, binary_to_integer(V)};
+                   ({AttributeName, [{_T, V}]}) ->
+                        {AttributeName, V}
+                end,
+            lists:map(F, Item);
+        {error, Reason} ->
+            ?debugVal(Reason),
+            error(Reason)
+    end.
+
+get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue) ->
+    %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
+    F = fun({Name, Value}) when is_binary(Value) ->
+               {Name, [{<<"S">>, Value}]};
+           ({Name, Value}) when is_integer(Value) ->
+               {Name, [{<<"N">>, Value}]}
+        end,
+    Json = [{<<"TableName">>, TableName},
+            {<<"Key">>, [F({HashKey, HashValue}), F({RangeKey, RangeValue})]},
             {<<"ConsistentRead">>, true}],
     jsonx:encode(Json).
 
