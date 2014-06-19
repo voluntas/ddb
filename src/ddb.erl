@@ -99,6 +99,8 @@ put_item_payload(TableName, Item) ->
     jsonx:encode(Json).
 
 
+%% テーブルの主キーはhashタイプ(1要素主キー)と、hash-and-rangeタイプ(2要素で主キー)があり得る
+%% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_CreateTable.html
 -spec get_item(#ddb_config{}, binary(), binary(), binary()) -> not_found | [{binary(), binary()}].
 get_item(Config, TableName, HashKey, HashValue) ->
     Target = x_amz_target(get_item),
