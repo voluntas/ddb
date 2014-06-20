@@ -105,13 +105,15 @@ put_item_payload(TableName, Item) ->
 -spec get_item(#ddb_config{}, binary(), binary(), binary()) -> not_found | [{binary(), binary()}].
 get_item(Config, TableName, HashKey, HashValue) ->
     Target = x_amz_target(get_item),
-    Payload = get_item_payload(TableName, HashKey, HashValue),
+    PrimaryKey = primary_key(HashKey, HashValue),
+    Payload = get_item_payload(TableName, PrimaryKey),
     get_item_request(Config, Target, Payload).
 
 -spec get_item(#ddb_config{}, binary(), binary(), binary(), binary(), binary()) -> not_found | [{binary(), binary()}].
 get_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue) ->
     Target = x_amz_target(get_item),
-    Payload = get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue),
+    PrimaryKey = primary_key(HashKey, HashValue, RangeKey, RangeValue),
+    Payload = get_item_payload(TableName, PrimaryKey),
     get_item_request(Config, Target, Payload).
 
 get_item_request(Config, Target, Payload) ->
@@ -132,19 +134,18 @@ get_item_request(Config, Target, Payload) ->
             error(Reason)
     end.
 
-get_item_payload(TableName, HashKey, HashValue) ->
+get_item_payload(TableName, PrimaryKey) ->
     %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{HashKey, typed_value(HashValue)}]},
+            {<<"Key">>, PrimaryKey},
             {<<"ConsistentRead">>, true}],
     jsonx:encode(Json).
 
-get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue) ->
-    %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
-    Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{HashKey, typed_value(HashValue)}, {RangeKey, typed_value(RangeValue)}]},
-            {<<"ConsistentRead">>, true}],
-    jsonx:encode(Json).
+primary_key(HashKey, HashValue) ->
+    [{HashKey, typed_value(HashValue)}].
+
+primary_key(HashKey, HashValue, RangeKey, RangeValue) ->
+    [{HashKey, typed_value(HashValue)}, {RangeKey, RangeValue}].
 
 typed_value(Value) when is_binary(Value) ->
     [{<<"S">>, Value}];
@@ -241,13 +242,15 @@ delete_table_payload(TableName) ->
 -spec update_item(#ddb_config{}, binary(), binary(), binary(), [{binary(), binary(), binary()}]) -> term().
 update_item(Config, TableName, HashKey, HashValue, AttributeUpdates) ->
     Target = x_amz_target(update_item),
-    Payload = update_item_payload(TableName, HashKey, HashValue, AttributeUpdates),
+    PrimaryKey = primary_key(HashKey, HashValue),
+    Payload = update_item_payload(TableName, PrimaryKey, AttributeUpdates),
     update_item_request(Config, Target, Payload).
 
 -spec update_item(#ddb_config{}, binary(), binary(), binary(), binary(), binary(), [{binary(), binary(), binary()}]) -> term().
 update_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue, AttributeUpdates) ->
     Target = x_amz_target(update_item),
-    Payload = update_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue, AttributeUpdates),
+    PrimaryKey = primary_key(HashKey, HashValue, RangeKey, RangeValue),
+    Payload = update_item_payload(TableName, PrimaryKey, AttributeUpdates),
     update_item_request(Config, Target, Payload).
 
 update_item_request(Config, Target, Payload) ->
@@ -261,21 +264,13 @@ update_item_request(Config, Target, Payload) ->
     end.
 
 %% AttributeUpdates [{AttributeName, Action, Value}]
-update_item_payload(TableName, HashKey, HashValue, AttributeUpdates) ->
+update_item_payload(TableName, PrimaryKey, AttributeUpdates) ->
     F = fun({AttributeName, Action, V}) ->
-            {AttributeName, [{<<"Action">>, Action}, {<<"Value">>, typed_value(V)}]}
+            {AttributeName, [{<<"Action">>, Action},
+                             {<<"Value">>, typed_value(V)}]}
         end,
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{HashKey, typed_value(HashValue)}]},
-            {<<"AttributeUpdates">>, lists:map(F, AttributeUpdates)}],
-    jsonx:encode(Json).
-
-update_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue, AttributeUpdates) ->
-    F = fun({AttributeName, Action, V}) ->
-            {AttributeName, [{<<"Action">>, Action}, {<<"Value">>, typed_value(V)}]}
-        end,
-    Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{HashKey, typed_value(HashValue)}, {RangeKey, typed_value(RangeValue)}]},
+            {<<"Key">>, PrimaryKey},
             {<<"AttributeUpdates">>, lists:map(F, AttributeUpdates)}],
     jsonx:encode(Json).
 
