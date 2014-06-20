@@ -5,6 +5,7 @@
 
 -export([create_table/4]).
 -export([delete_item/4]).
+-export([delete_item/6]).
 -export([delete_table/2]).
 -export([get_item/4]).
 -export([get_item/6]).
@@ -147,6 +148,7 @@ primary_key(HashKey, HashValue) ->
 primary_key(HashKey, HashValue, RangeKey, RangeValue) ->
     [{HashKey, typed_value(HashValue)}, {RangeKey, RangeValue}].
 
+%% FIXME(nakai): S/N しかない
 typed_value(Value) when is_binary(Value) ->
     [{<<"S">>, Value}];
 typed_value(Value) when is_integer(Value) ->
@@ -203,9 +205,19 @@ create_table_payload(TableName, AttributeName, KeyType) ->
     jsonx:encode(Json).
 
 
-delete_item(Config, TableName, Key, Value) ->
+delete_item(Config, TableName, HashKey, HashValue) ->
     Target = x_amz_target(delete_item),
-    Payload = delete_item_payload(TableName, Key, Value),
+    PrimaryKey = primary_key(HashKey, HashValue),
+    Payload = delete_item_payload(TableName, PrimaryKey),
+    delete_item_request(Config, Target, Payload).
+
+delete_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue) ->
+    Target = x_amz_target(delete_item),
+    PrimaryKey = primary_key(HashKey, HashValue, RangeKey, RangeValue),
+    Payload = delete_item_payload(TableName, PrimaryKey),
+    delete_item_request(Config, Target, Payload).
+
+delete_item_request(Config, Target, Payload) ->
     case post(Config, Target, Payload) of
         {ok, _Json} ->
             ?debugVal(_Json),
@@ -215,16 +227,9 @@ delete_item(Config, TableName, Key, Value) ->
             error(Reason)
     end.
 
-
-%% FIXME(nakai): S/N しかない
-delete_item_payload(TableName, Key, Value) when is_binary(Value) ->
-    delete_item_payload(TableName, Key, <<"S">>, Value);
-delete_item_payload(TableName, Key, Value) when is_binary(Value) ->
-    delete_item_payload(TableName, Key, <<"N">>, Value).
-
-delete_item_payload(TableName, Key, Type, Value) ->
+delete_item_payload(TableName, PrimaryKey) ->
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{Key, [{Type, Value}]}]}],
+            {<<"Key">>, PrimaryKey}],
     jsonx:encode(Json).
 
 
