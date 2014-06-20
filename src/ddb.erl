@@ -11,6 +11,7 @@
 -export([list_tables/1]).
 -export([put_item/3]).
 -export([update_item/5]).
+-export([update_item/7]).
 
 -export_type([config/0]).
 
@@ -238,9 +239,18 @@ delete_table_payload(TableName) ->
 
 
 -spec update_item(#ddb_config{}, binary(), binary(), binary(), [{binary(), binary(), binary()}]) -> term().
-update_item(Config, TableName, Key, Value, AttributeUpdates) ->
+update_item(Config, TableName, HashKey, HashValue, AttributeUpdates) ->
     Target = x_amz_target(update_item),
-    Payload = update_item_payload(TableName, Key, Value, AttributeUpdates),
+    Payload = update_item_payload(TableName, HashKey, HashValue, AttributeUpdates),
+    update_item_request(Config, Target, Payload).
+
+-spec update_item(#ddb_config{}, binary(), binary(), binary(), binary(), binary(), [{binary(), binary(), binary()}]) -> term().
+update_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue, AttributeUpdates) ->
+    Target = x_amz_target(update_item),
+    Payload = update_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue, AttributeUpdates),
+    update_item_request(Config, Target, Payload).
+
+update_item_request(Config, Target, Payload) ->
     case post(Config, Target, Payload) of
         {ok, _Json} ->
             ?debugVal(_Json),
@@ -250,26 +260,23 @@ update_item(Config, TableName, Key, Value, AttributeUpdates) ->
             error(Reason)
     end.
 
-
-%% AttributeUpdates [{AttributeName, Action, Value}] 
-update_item_payload(TableName, Key, Value, AttributeUpdates) when is_binary(Value) ->
-    update_item_payload(TableName, Key, <<"S">>, Value, AttributeUpdates);
-update_item_payload(TableName, Key, Value, AttributeUpdates) when is_integer(Value) ->
-    update_item_payload(TableName, Key, <<"N">>, Value, AttributeUpdates).
-
-
-update_item_payload(TableName, Key, Type, Value, AttributeUpdates) ->
-    F = fun({AttributeName, Action, V}) when is_binary(V) ->
-                {AttributeName, [{<<"Action">>, Action},
-                                 {<<"Value">>, [{<<"S">>, V}]}]};
-           ({AttributeName, Action, V}) when is_integer(V) ->
-                {AttributeName, [{<<"Action">>, Action},
-                                 {<<"Value">>, [{<<"N">>, integer_to_binary(V)}]}]}
+%% AttributeUpdates [{AttributeName, Action, Value}]
+update_item_payload(TableName, HashKey, HashValue, AttributeUpdates) ->
+    F = fun({AttributeName, Action, V}) ->
+            {AttributeName, [{<<"Action">>, Action}, {<<"Value">>, typed_value(V)}]}
         end,
-    AttributeUpdates1 = lists:map(F, AttributeUpdates),
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{Key, [{Type, Value}]}]},
-            {<<"AttributeUpdates">>, AttributeUpdates1}],
+            {<<"Key">>, [{HashKey, typed_value(HashValue)}]},
+            {<<"AttributeUpdates">>, lists:map(F, AttributeUpdates)}],
+    jsonx:encode(Json).
+
+update_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue, AttributeUpdates) ->
+    F = fun({AttributeName, Action, V}) ->
+            {AttributeName, [{<<"Action">>, Action}, {<<"Value">>, typed_value(V)}]}
+        end,
+    Json = [{<<"TableName">>, TableName},
+            {<<"Key">>, [{HashKey, typed_value(HashValue)}, {RangeKey, typed_value(RangeValue)}]},
+            {<<"AttributeUpdates">>, lists:map(F, AttributeUpdates)}],
     jsonx:encode(Json).
 
 
