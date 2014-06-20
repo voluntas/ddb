@@ -205,12 +205,15 @@ create_table_payload(TableName, AttributeName, KeyType) ->
     jsonx:encode(Json).
 
 
+%% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DeleteItem.html
+-spec delete_item(#ddb_config{}, binary(), binary(), binary()) -> term().
 delete_item(Config, TableName, HashKey, HashValue) ->
     Target = x_amz_target(delete_item),
     PrimaryKey = primary_key(HashKey, HashValue),
     Payload = delete_item_payload(TableName, PrimaryKey),
     delete_item_request(Config, Target, Payload).
 
+-spec delete_item(#ddb_config{}, binary(), binary(), binary(), binary(), binary()) -> term().
 delete_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue) ->
     Target = x_amz_target(delete_item),
     PrimaryKey = primary_key(HashKey, HashValue, RangeKey, RangeValue),
@@ -244,6 +247,7 @@ delete_table_payload(TableName) ->
     jsonx:encode(Json).
 
 
+%% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html
 -spec update_item(#ddb_config{}, binary(), binary(), binary(), [{binary(), binary(), binary()}]) -> term().
 update_item(Config, TableName, HashKey, HashValue, AttributeUpdates) ->
     Target = x_amz_target(update_item),
