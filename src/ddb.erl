@@ -330,6 +330,7 @@ post(#ddb_config{access_key_id = AccessKeyId,
         {ok, 200, _RespHeaders, ClientRef} ->
             {ok, Body} = hackney:body(ClientRef),
             ?debugVal(Body),
+            ok = hackney:close(ClientRef),
             {ok, jsonx:decode(Body, [{format, proplist}])};
         {ok, _StatusCode, _RespHeaders, ClientRef} ->
             ?debugVal(_StatusCode),
@@ -338,6 +339,7 @@ post(#ddb_config{access_key_id = AccessKeyId,
             Json = jsonx:decode(Body, [{format, proplist}]),
             Type = proplists:get_value(<<"__type">>, Json),
             Message = proplists:get_value(<<"Message">>, Json),
+            ok = hackney:close(ClientRef),
             {error, {Type, Message}}
     end.
 
