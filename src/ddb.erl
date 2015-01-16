@@ -5,12 +5,14 @@
 
 -export([create_table/4]).
 -export([delete_item/4]).
+-export([delete_item/6]).
 -export([delete_table/2]).
 -export([get_item/4]).
 -export([get_item/6]).
 -export([list_tables/1]).
 -export([put_item/3]).
 -export([update_item/5]).
+-export([update_item/7]).
 
 -export_type([config/0]).
 
@@ -104,13 +106,15 @@ put_item_payload(TableName, Item) ->
 -spec get_item(#ddb_config{}, binary(), binary(), binary()) -> not_found | [{binary(), binary()}].
 get_item(Config, TableName, HashKey, HashValue) ->
     Target = x_amz_target(get_item),
-    Payload = get_item_payload(TableName, HashKey, HashValue),
+    PrimaryKey = primary_key(HashKey, HashValue),
+    Payload = get_item_payload(TableName, PrimaryKey),
     get_item_request(Config, Target, Payload).
 
 -spec get_item(#ddb_config{}, binary(), binary(), binary(), binary(), binary()) -> not_found | [{binary(), binary()}].
 get_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue) ->
     Target = x_amz_target(get_item),
-    Payload = get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue),
+    PrimaryKey = primary_key(HashKey, HashValue, RangeKey, RangeValue),
+    Payload = get_item_payload(TableName, PrimaryKey),
     get_item_request(Config, Target, Payload).
 
 get_item_request(Config, Target, Payload) ->
@@ -131,20 +135,20 @@ get_item_request(Config, Target, Payload) ->
             error(Reason)
     end.
 
-get_item_payload(TableName, HashKey, HashValue) ->
+get_item_payload(TableName, PrimaryKey) ->
     %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{HashKey, typed_value(HashValue)}]},
+            {<<"Key">>, PrimaryKey},
             {<<"ConsistentRead">>, true}],
     jsonx:encode(Json).
 
-get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue) ->
-    %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
-    Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{HashKey, typed_value(HashValue)}, {RangeKey, typed_value(RangeValue)}]},
-            {<<"ConsistentRead">>, true}],
-    jsonx:encode(Json).
+primary_key(HashKey, HashValue) ->
+    [{HashKey, typed_value(HashValue)}].
 
+primary_key(HashKey, HashValue, RangeKey, RangeValue) ->
+    [{HashKey, typed_value(HashValue)}, {RangeKey, RangeValue}].
+
+%% FIXME(nakai): S/N しかない
 typed_value(Value) when is_binary(Value) ->
     [{<<"S">>, Value}];
 typed_value(Value) when is_integer(Value) ->
@@ -201,9 +205,22 @@ create_table_payload(TableName, AttributeName, KeyType) ->
     jsonx:encode(Json).
 
 
-delete_item(Config, TableName, Key, Value) ->
+%% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DeleteItem.html
+-spec delete_item(#ddb_config{}, binary(), binary(), binary()) -> term().
+delete_item(Config, TableName, HashKey, HashValue) ->
     Target = x_amz_target(delete_item),
-    Payload = delete_item_payload(TableName, Key, Value),
+    PrimaryKey = primary_key(HashKey, HashValue),
+    Payload = delete_item_payload(TableName, PrimaryKey),
+    delete_item_request(Config, Target, Payload).
+
+-spec delete_item(#ddb_config{}, binary(), binary(), binary(), binary(), binary()) -> term().
+delete_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue) ->
+    Target = x_amz_target(delete_item),
+    PrimaryKey = primary_key(HashKey, HashValue, RangeKey, RangeValue),
+    Payload = delete_item_payload(TableName, PrimaryKey),
+    delete_item_request(Config, Target, Payload).
+
+delete_item_request(Config, Target, Payload) ->
     case post(Config, Target, Payload) of
         {ok, _Json} ->
             ?debugVal(_Json),
@@ -213,16 +230,9 @@ delete_item(Config, TableName, Key, Value) ->
             error(Reason)
     end.
 
-
-%% FIXME(nakai): S/N しかない
-delete_item_payload(TableName, Key, Value) when is_binary(Value) ->
-    delete_item_payload(TableName, Key, <<"S">>, Value);
-delete_item_payload(TableName, Key, Value) when is_binary(Value) ->
-    delete_item_payload(TableName, Key, <<"N">>, Value).
-
-delete_item_payload(TableName, Key, Type, Value) ->
+delete_item_payload(TableName, PrimaryKey) ->
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{Key, [{Type, Value}]}]}],
+            {<<"Key">>, PrimaryKey}],
     jsonx:encode(Json).
 
 
@@ -237,10 +247,22 @@ delete_table_payload(TableName) ->
     jsonx:encode(Json).
 
 
+%% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html
 -spec update_item(#ddb_config{}, binary(), binary(), binary(), [{binary(), binary(), binary()}]) -> term().
-update_item(Config, TableName, Key, Value, AttributeUpdates) ->
+update_item(Config, TableName, HashKey, HashValue, AttributeUpdates) ->
     Target = x_amz_target(update_item),
-    Payload = update_item_payload(TableName, Key, Value, AttributeUpdates),
+    PrimaryKey = primary_key(HashKey, HashValue),
+    Payload = update_item_payload(TableName, PrimaryKey, AttributeUpdates),
+    update_item_request(Config, Target, Payload).
+
+-spec update_item(#ddb_config{}, binary(), binary(), binary(), binary(), binary(), [{binary(), binary(), binary()}]) -> term().
+update_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue, AttributeUpdates) ->
+    Target = x_amz_target(update_item),
+    PrimaryKey = primary_key(HashKey, HashValue, RangeKey, RangeValue),
+    Payload = update_item_payload(TableName, PrimaryKey, AttributeUpdates),
+    update_item_request(Config, Target, Payload).
+
+update_item_request(Config, Target, Payload) ->
     case post(Config, Target, Payload) of
         {ok, _Json} ->
             ?debugVal(_Json),
@@ -250,26 +272,15 @@ update_item(Config, TableName, Key, Value, AttributeUpdates) ->
             error(Reason)
     end.
 
-
-%% AttributeUpdates [{AttributeName, Action, Value}] 
-update_item_payload(TableName, Key, Value, AttributeUpdates) when is_binary(Value) ->
-    update_item_payload(TableName, Key, <<"S">>, Value, AttributeUpdates);
-update_item_payload(TableName, Key, Value, AttributeUpdates) when is_integer(Value) ->
-    update_item_payload(TableName, Key, <<"N">>, Value, AttributeUpdates).
-
-
-update_item_payload(TableName, Key, Type, Value, AttributeUpdates) ->
-    F = fun({AttributeName, Action, V}) when is_binary(V) ->
-                {AttributeName, [{<<"Action">>, Action},
-                                 {<<"Value">>, [{<<"S">>, V}]}]};
-           ({AttributeName, Action, V}) when is_integer(V) ->
-                {AttributeName, [{<<"Action">>, Action},
-                                 {<<"Value">>, [{<<"N">>, integer_to_binary(V)}]}]}
+%% AttributeUpdates [{AttributeName, Action, Value}]
+update_item_payload(TableName, PrimaryKey, AttributeUpdates) ->
+    F = fun({AttributeName, Action, V}) ->
+            {AttributeName, [{<<"Action">>, Action},
+                             {<<"Value">>, typed_value(V)}]}
         end,
-    AttributeUpdates1 = lists:map(F, AttributeUpdates),
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{Key, [{Type, Value}]}]},
-            {<<"AttributeUpdates">>, AttributeUpdates1}],
+            {<<"Key">>, PrimaryKey},
+            {<<"AttributeUpdates">>, lists:map(F, AttributeUpdates)}],
     jsonx:encode(Json).
 
 
