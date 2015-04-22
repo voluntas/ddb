@@ -11,6 +11,7 @@
 -export([list_tables/1]).
 -export([put_item/3]).
 -export([update_item/5]).
+-export([scan/2, scan/3, scan/4, scan/6]).
 
 -export_type([config/0]).
 
@@ -81,21 +82,14 @@ put_item(Config, TableName, Item) ->
 
 
 put_item_payload(TableName, Item) ->
-    F = fun({Name, Value}) when is_binary(Value) ->
-                {Name, [{<<"S">>, Value}]};
-           ({Name, Value}) when is_integer(Value) ->
-                {Name, [{<<"N">>, integer_to_binary(Value)}]}
+    F = fun({Name, _Value}) ->
+           %% FIXME(nakai): 上書き禁止を固定している
+           {Name, [{<<"Exists">>, false}]}
         end,
-    Item1 = lists:map(F, Item),
-
-    F1 = fun({Name, _Value}) ->
-                 %% FIXME(nakai): 上書き禁止を固定している
-                {Name, [{<<"Exists">>, false}]}
-         end,
-    Expected1 = lists:map(F1, Item),
+    Expected = lists:map(F, Item),
     Json = [{<<"TableName">>, TableName},
-            {<<"Expected">>, Expected1},
-            {<<"Item">>, Item1}],
+            {<<"Expected">>, Expected},
+            {<<"Item">>, typed_item(Item)}],
     jsonx:encode(Json).
 
 
@@ -113,43 +107,47 @@ get_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue) ->
     Payload = get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue),
     get_item_request(Config, Target, Payload).
 
+
 get_item_request(Config, Target, Payload) ->
     case post(Config, Target, Payload) of
         {ok, []} ->
             not_found;
         {ok, Json} ->
             %% XXX(nakai): Item はあえて出している
-            Item = proplists:get_value(<<"Item">>, Json),
-            F = fun({AttributeName, [{<<"N">>, V}]}) ->
-                        {AttributeName, binary_to_integer(V)};
-                   ({AttributeName, [{_T, V}]}) ->
-                        {AttributeName, V}
-                end,
-            lists:map(F, Item);
+            cast_item(proplists:get_value(<<"Item">>, Json));
         {error, Reason} ->
             ?debugVal(Reason),
             error(Reason)
     end.
 
+
 get_item_payload(TableName, HashKey, HashValue) ->
     %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{HashKey, typed_value(HashValue)}]},
+            {<<"Key">>, typed_item([{HashKey, HashValue}])},
             {<<"ConsistentRead">>, true}],
     jsonx:encode(Json).
 
 get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue) ->
     %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
     Json = [{<<"TableName">>, TableName},
-            {<<"Key">>, [{HashKey, typed_value(HashValue)}, {RangeKey, typed_value(RangeValue)}]},
+            {<<"Key">>, typed_item([{HashKey, HashValue}, {RangeKey, RangeValue}])},
             {<<"ConsistentRead">>, true}],
     jsonx:encode(Json).
+
+
+typed_item(Item) ->
+    lists:map(fun typed_attribute/1, Item).
+
+
+typed_attribute({Key, Value}) ->
+    {Key, typed_value(Value)}.
+
 
 typed_value(Value) when is_binary(Value) ->
     [{<<"S">>, Value}];
 typed_value(Value) when is_integer(Value) ->
     [{<<"N">>, Value}].
-
 
 
 -spec list_tables(#ddb_config{}) -> [binary()].
@@ -178,26 +176,36 @@ create_table(Config, TableName, AttributeName, KeyType) ->
             error(Reason)
     end.
 
+
 %% KeyType HASH RANGE
 create_table_payload(TableName, AttributeName, KeyType) ->
     %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_CreateTable.html
-    Json = [{<<"TableName">>, TableName},
-            {<<"AttributeDefinitions">>, [
-                                          [{<<"AttributeName">>, AttributeName},
-                                           {<<"AttributeType">>, <<"S">>}
-                                          ]
-                                         ]
-            },
-            {<<"ProvisionedThroughput">>, [{<<"ReadCapacityUnits">>, 1},
-                                           {<<"WriteCapacityUnits">>, 1}
-                                          ]
-            },
-            {<<"KeySchema">>, [
-                               [{<<"AttributeName">>, AttributeName},
-                                {<<"KeyType">>, KeyType}]
-                              ]
-            }
-           ],
+    Json = [
+        {
+            <<"TableName">>, TableName
+        },
+        {
+            <<"AttributeDefinitions">>,
+            [[
+                {<<"AttributeName">>, AttributeName},
+                {<<"AttributeType">>, <<"S">>}
+            ]]
+        },
+        {
+            <<"ProvisionedThroughput">>,
+            [
+                {<<"ReadCapacityUnits">>, 1},
+                {<<"WriteCapacityUnits">>, 1}
+            ]
+        },
+        {
+            <<"KeySchema">>,
+            [[
+                {<<"AttributeName">>, AttributeName},
+                {<<"KeyType">>, KeyType}
+            ]]
+        }
+    ],
     jsonx:encode(Json).
 
 
@@ -273,6 +281,93 @@ update_item_payload(TableName, Key, Type, Value, AttributeUpdates) ->
     jsonx:encode(Json).
 
 
+-spec scan(#ddb_config{}, binary()) -> not_found | [{binary(), binary()}].
+scan(Config, TableName) ->
+  {Items, undefined} = scan(Config, TableName, undefined),
+  Items.
+
+-spec scan(#ddb_config{}, binary(), integer()) -> {not_found | [{binary(), binary()}], undefined | binary()}.
+scan(Config, TableName, Limit) ->
+  scan(Config, TableName, Limit, undefined).
+
+-spec scan(#ddb_config{}, binary(), integer(), binary()) -> {not_found | [{binary(), binary()}], undefined | binary()}.
+scan(Config, TableName, Limit, ExclusiveStartKey) ->
+  scan(Config, TableName, Limit, ExclusiveStartKey, undefined, undefined).
+
+-spec scan(#ddb_config{}, binary(), integer(), binary(), binary(), [{binary(), binary()}]) -> {not_found | [{binary(), binary()}], undefined | binary()}.
+scan(Config, TableName, Limit, ExclusiveStartKey, FilterExpression, ExpressionAttributeValues) ->
+    Target = x_amz_target(scan),
+    Payload = scan_payload(TableName, Limit, ExclusiveStartKey, FilterExpression, ExpressionAttributeValues),
+    scan_request(Config, Target, Payload).
+
+
+scan_payload(TableName, Limit, ExclusiveStartKey, FilterExpression, ExpressionAttributeValues) ->
+    Json = [{<<"TableName">>, TableName},
+            {<<"ReturnConsumedCapacity">>, <<"TOTAL">>}],
+    JsonWithLimit = add_limit_to_scan_payload(Json, Limit),
+    JsonWithExclusiveStartKey = add_exclusive_start_key_to_scan_payload(JsonWithLimit, ExclusiveStartKey),
+    JsonWithFilter = add_filter_to_scan_payload(JsonWithExclusiveStartKey, FilterExpression, ExpressionAttributeValues),
+    jsonx:encode(JsonWithFilter).
+
+
+add_limit_to_scan_payload(Json, undefined) ->
+    Json;
+add_limit_to_scan_payload(Json, Limit) ->
+    [{<<"Limit">>, Limit} | Json].
+
+
+add_exclusive_start_key_to_scan_payload(Json, undefined) ->
+    Json;
+add_exclusive_start_key_to_scan_payload(Json, ExclusiveStartKey) ->
+    [{<<"ExclusiveStartKey">>, typed_item(ExclusiveStartKey)} | Json].
+
+
+add_filter_to_scan_payload(Json, undefined, undefined) ->
+    Json;
+add_filter_to_scan_payload(Json, FilterExpression, ExpressionAttributeValues) ->
+    JsonWithExpression = [{<<"FilterExpression">>, FilterExpression} | Json],
+    Values = typed_item(ExpressionAttributeValues),
+    [{<<"ExpressionAttributeValues">>, Values} | JsonWithExpression].
+
+
+scan_request(Config, Target, Payload) ->
+    case post(Config, Target, Payload) of
+        {ok, Json} ->
+            case proplists:get_value(<<"Count">>, Json) of
+                0 ->
+                    {not_found, undefined};
+                _Count ->
+                    Items = proplists:get_value(<<"Items">>, Json),
+                    LastEvaluatedKey = proplists:get_value(<<"LastEvaluatedKey">>, Json, undefined),
+                    {cast_items(Items),
+                     cast_last_evaluated_key(LastEvaluatedKey)}
+            end;
+        {error, Reason} ->
+            ?debugVal(Reason),
+            error(Reason)
+    end.
+ 
+
+cast_last_evaluated_key(undefined) ->
+    undefined;
+cast_last_evaluated_key(LastEvaluatedKey) ->
+    cast_item(LastEvaluatedKey).
+
+
+cast_items(Items) ->
+    lists:map(fun cast_item/1, Items).
+
+
+cast_item(Item) ->
+    lists:map(fun cast_attribute/1, Item).
+
+
+cast_attribute({AttributeName, [{<<"N">>, V}]}) ->
+    {AttributeName, binary_to_integer(V)};
+cast_attribute({AttributeName, [{_T, V}]}) ->
+    {AttributeName, V}.
+
+
 -spec x_amz_target(atom()) -> binary().
 x_amz_target(batch_get_item) ->
     error(not_implemented);
@@ -295,7 +390,7 @@ x_amz_target(put_item) ->
 x_amz_target(query) ->
     error(not_implemented);
 x_amz_target(scan) ->
-    error(not_implemented);
+    <<"DynamoDB_20120810.Scan">>;
 x_amz_target(update_item) ->
     <<"DynamoDB_20120810.UpdateItem">>;
 x_amz_target(update_table) ->
