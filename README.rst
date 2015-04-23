@@ -2,6 +2,9 @@
 とりあえず動く DynamoDB クライアント (Erlang/OTP)
 #################################################
 
+.. image:: https://circleci.com/gh/voluntas/ddb.svg?style=svg
+    :target: https://circleci.com/gh/voluntas/ddb
+
 注意
 ====
 
@@ -56,7 +59,7 @@ AmazonDynamo Local
     x_amz_target(query) ->
         error(not_implemented);
     x_amz_target(scan) ->
-        error(not_implemented);
+        <<"DynamoDB_20120810.Scan">>;
     x_amz_target(update_item) ->
         <<"DynamoDB_20120810.UpdateItem">>;
     x_amz_target(update_table) ->
