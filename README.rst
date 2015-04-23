@@ -25,12 +25,18 @@
 AmazonDynamo Local
 ==================
 
-2014-05-08::
+docker を使っています。
 
-    $ curl -OL http://dynamodb-local.s3-website-us-west-2.amazonaws.com/dynamodb_local_latest
-    $ tar xvfz dynamodb_local_2014-04-24.tar.gz
-    $ cd dynamodb_local_2014-04-24
-    $ java -Djava.library.path=./DynamoDBLocal_lib -jar DynamoDBLocal.jar
+:URL: https://registry.hub.docker.com/u/tray/dynamodb-local/
+
+DynamoDB local 起動::
+
+    make start_dynamodb_local
+
+DynamoDB local 終了::
+
+    make stop_dynamodb_local
+
 
 実装済
 ======
