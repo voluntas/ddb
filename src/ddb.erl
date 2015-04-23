@@ -294,7 +294,7 @@ scan(Config, TableName, Limit) ->
 scan(Config, TableName, Limit, ExclusiveStartKey) ->
   scan(Config, TableName, Limit, ExclusiveStartKey, undefined, undefined).
 
--spec scan(#ddb_config{}, binary(), integer(), binary(), binary(), [{binary(), binary()}]) -> {not_found | [{binary(), binary()}], undefined | binary()}.
+-spec scan(#ddb_config{}, binary(), integer(), binary(), binary(), [{binary(), binary()}]) -> {[{binary(), binary()}], undefined | binary()}.
 scan(Config, TableName, Limit, ExclusiveStartKey, FilterExpression, ExpressionAttributeValues) ->
     Target = x_amz_target(scan),
     Payload = scan_payload(TableName, Limit, ExclusiveStartKey, FilterExpression, ExpressionAttributeValues),
@@ -333,15 +333,9 @@ add_filter_to_scan_payload(Json, FilterExpression, ExpressionAttributeValues) ->
 scan_request(Config, Target, Payload) ->
     case post(Config, Target, Payload) of
         {ok, Json} ->
-            case proplists:get_value(<<"Count">>, Json) of
-                0 ->
-                    {not_found, undefined};
-                _Count ->
-                    Items = proplists:get_value(<<"Items">>, Json),
-                    LastEvaluatedKey = proplists:get_value(<<"LastEvaluatedKey">>, Json, undefined),
-                    {cast_items(Items),
-                     cast_last_evaluated_key(LastEvaluatedKey)}
-            end;
+            Items = proplists:get_value(<<"Items">>, Json),
+            LastEvaluatedKey = proplists:get_value(<<"LastEvaluatedKey">>, Json, undefined),
+            {cast_items(Items), cast_last_evaluated_key(LastEvaluatedKey)}
         {error, Reason} ->
             ?debugVal(Reason),
             error(Reason)
