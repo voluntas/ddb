@@ -77,7 +77,8 @@ connection_local_test_() ->
 
 success() ->
     C = ddb:connection_local(host(), 8000),
-    ?assertEqual([], ddb:list_tables(C)),
+    ?assertEqual([],
+		 ddb:list_tables(C)),
     ?assertEqual(ok,
                  ddb:create_table(C, <<"users">>, <<"user_id">>, <<"HASH">>)),
     ?assertEqual(ok,
@@ -104,5 +105,7 @@ success() ->
                  ddb:delete_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
     ?assertEqual(not_found,
                  ddb:get_item(C, <<"users">>, <<"user_id">>, <<"USER-ID">>)),
-    ddb:delete_table(C, <<"users">>),
+    ?assertEqual(ok,
+		 ddb:delete_table(C, <<"users">>)),
+
     ok.

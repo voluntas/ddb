@@ -239,7 +239,12 @@ delete_item_payload(TableName, Key, Type, Value) ->
 delete_table(Config, TableName) ->
     Target = x_amz_target(delete_table),
     Payload = delete_table_payload(TableName),
-    post(Config, Target, Payload).
+    case post(Config, Target, Payload) of
+	{ok, _JSON} ->
+	    ok;
+	{error, Reason} ->
+	    error(Reason)
+    end.
 
 
 delete_table_payload(TableName) ->

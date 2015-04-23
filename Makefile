@@ -1,7 +1,5 @@
 .PHONY: all compile deps clean test devrel rel
 
-# https://registry.hub.docker.com/u/tray/dynamodb-local/
-
 REBAR_CONFIG = rebar.config
 APP_NAME = ddb
 
