@@ -1,0 +1,19 @@
+machine:
+  services:
+    - docker
+
+dependencies:
+  cache_directories:
+    - "~/otp-17.5"
+    - "~/docker"
+  override:
+    - bash ./install-otp_src_17.5.sh
+    - if [[ -e ~/docker/image.tar ]]; then docker load -i ~/docker/image.tar ; else docker pull tray/dynamodb-local ; mkdir -p ~/docker ; docker save tray/dynamodb-local > ~/docker/image.tar ; fi
+
+test:
+  pre:
+    - ln -s ~/otp-17.5/bin/erl ~/bin/erl
+  override:
+    - make start_dynamodb_local; sleep 5
+    - erl -version
+    - make

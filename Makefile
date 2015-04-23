@@ -21,10 +21,10 @@ compile:
 	@./rebar -C $(REBAR_CONFIG) xref skip_deps=true
 
 
-dynamodb_local_start:
+start_dynamodb_local:
 	docker run -d -i -t --name dynamodb-local -p 8000:8000 tray/dynamodb-local -inMemory -port 8000
 
-dynamodb_local_stop:
+stop_dynamodb_local:
 	docker stop dynamodb-local
 	docker rm dynamodb-local
 
