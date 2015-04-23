@@ -335,7 +335,7 @@ scan_request(Config, Target, Payload) ->
         {ok, Json} ->
             Items = proplists:get_value(<<"Items">>, Json),
             LastEvaluatedKey = proplists:get_value(<<"LastEvaluatedKey">>, Json, undefined),
-            {cast_items(Items), cast_last_evaluated_key(LastEvaluatedKey)}
+            {cast_items(Items), cast_last_evaluated_key(LastEvaluatedKey)};
         {error, Reason} ->
             ?debugVal(Reason),
             error(Reason)
