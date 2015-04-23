@@ -19,16 +19,18 @@
 
 -define(SERVICE, <<"dynamodb">>).
 
--record(ddb_config, {access_key_id :: binary(),
-                     secret_access_key :: binary(),
-                     is_secure = true :: boolean(),
-                     endpoint :: binary(),
-                     service :: binary(),
-                     region :: binary(),
+-record(ddb_config, {
+          access_key_id :: binary(),
+          secret_access_key :: binary(),
+          is_secure = true :: boolean(),
+          endpoint :: binary(),
+          service :: binary(),
+          region :: binary(),
 
-                     local = false :: boolean(),
-                     host :: binary(),
-                     port :: inet:port_number()}).
+          local = false :: boolean(),
+          host :: binary(),
+          port :: inet:port_number()
+         }).
 
 -type config() :: #ddb_config{}.
 
@@ -39,12 +41,14 @@
 
 -spec connection(binary(), binary(), binary(), boolean()) -> #ddb_config{}.
 connection(AccessKeyId, SecretAccessKey, Region, IsSecure) ->
-    #ddb_config{access_key_id = AccessKeyId,
-                secret_access_key = SecretAccessKey,
-                region = Region,
-                is_secure = IsSecure,
-                service = ?SERVICE,
-                endpoint = endpoint(?SERVICE, Region)}.
+    #ddb_config{
+       access_key_id = AccessKeyId,
+       secret_access_key = SecretAccessKey,
+       region = Region,
+       is_secure = IsSecure,
+       service = ?SERVICE,
+       endpoint = endpoint(?SERVICE, Region)
+      }.
 
 
 -spec endpoint(binary(), binary()) -> binary().
@@ -56,15 +60,17 @@ connection_local() ->
     connection_local(<<"127.0.0.1">>, 8000).
 
 connection_local(Host, Port) ->
-    #ddb_config{host = Host,
-                port = Port,
-                access_key_id = <<"ACCESS_KEY_ID">>,
-                secret_access_key = <<"SECRET_ACCESS_KEY">>,
-                endpoint = <<Host/binary, $:, (integer_to_binary(Port))/binary>>,
-                region = <<"ap-northeast-1">>,
-                service = ?SERVICE,
-                local = true,
-                is_secure = false}.
+    #ddb_config{
+       host = Host,
+       port = Port,
+       access_key_id = <<"ACCESS_KEY_ID">>,
+       secret_access_key = <<"SECRET_ACCESS_KEY">>,
+       endpoint = <<Host/binary, $:, (integer_to_binary(Port))/binary>>,
+       region = <<"ap-northeast-1">>,
+       service = ?SERVICE,
+       local = true,
+       is_secure = false
+      }.
 
 
 -spec put_item(#ddb_config{}, binary(), [{binary(), binary()}]) -> ok.
@@ -73,7 +79,6 @@ put_item(Config, TableName, Item) ->
     Payload = put_item_payload(TableName, Item),
     case post(Config, Target, Payload) of
         {ok, _Json} ->
-            ?debugVal(_Json),
             ok;
         {error, Reason} ->
             ?debugVal(Reason),
@@ -156,7 +161,6 @@ list_tables(Config) ->
     Payload = jsonx:encode({[]}),
     case post(Config, Target, Payload) of
         {ok, Json} ->
-            ?debugVal(Json),
             proplists:get_value(<<"TableNames">>, Json);
         {error, Reason} ->
             ?debugVal(Reason),
@@ -169,7 +173,6 @@ create_table(Config, TableName, AttributeName, KeyType) ->
     Payload = create_table_payload(TableName, AttributeName, KeyType),
     case post(Config, Target, Payload) of
         {ok, _Json} ->
-            ?debugVal(_Json),
             ok;
         {error, Reason} ->
             ?debugVal(Reason),
@@ -214,7 +217,6 @@ delete_item(Config, TableName, Key, Value) ->
     Payload = delete_item_payload(TableName, Key, Value),
     case post(Config, Target, Payload) of
         {ok, _Json} ->
-            ?debugVal(_Json),
             ok;
         {error, Reason} ->
             ?debugVal(Reason),
@@ -251,7 +253,6 @@ update_item(Config, TableName, Key, Value, AttributeUpdates) ->
     Payload = update_item_payload(TableName, Key, Value, AttributeUpdates),
     case post(Config, Target, Payload) of
         {ok, _Json} ->
-            ?debugVal(_Json),
             ok;
         {error, Reason} ->
             ?debugVal(Reason),
@@ -418,12 +419,9 @@ post(#ddb_config{access_key_id = AccessKeyId,
     case hackney:post(Url, Headers1, Payload, [{pool, default}]) of
         {ok, 200, _RespHeaders, ClientRef} ->
             {ok, Body} = hackney:body(ClientRef),
-            ?debugVal(Body),
             ok = hackney:close(ClientRef),
             {ok, jsonx:decode(Body, [{format, proplist}])};
         {ok, _StatusCode, _RespHeaders, ClientRef} ->
-            ?debugVal(_StatusCode),
-            ?debugVal(_RespHeaders),
             {ok, Body} = hackney:body(ClientRef),
             Json = jsonx:decode(Body, [{format, proplist}]),
             Type = proplists:get_value(<<"__type">>, Json),
