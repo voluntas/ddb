@@ -400,12 +400,14 @@ url(false, Endpoint) ->
     <<"http://", Endpoint/binary>>.
 
 
-post(#ddb_config{access_key_id = AccessKeyId,
-                 secret_access_key = SecretAccessKey,
-                 service = Service,
-                 region = Region,
-                 endpoint = Endpoint,
-                 is_secure = IsSecure}, Target, Payload) ->
+post(#ddb_config{
+        access_key_id = AccessKeyId,
+        secret_access_key = SecretAccessKey,
+        service = Service,
+        region = Region,
+        endpoint = Endpoint,
+        is_secure = IsSecure
+       }, Target, Payload) ->
     Headers0 = [{<<"x-amz-target">>, Target}, 
                 {<<"host">>, Endpoint}],
     DateTime = aws:iso_8601_basic_format(os:timestamp()),
@@ -419,14 +421,14 @@ post(#ddb_config{access_key_id = AccessKeyId,
     case hackney:post(Url, Headers1, Payload, [{pool, default}]) of
         {ok, 200, _RespHeaders, ClientRef} ->
             {ok, Body} = hackney:body(ClientRef),
-            ok = hackney:close(ClientRef),
+            %% ok = hackney:close(ClientRef),
             {ok, jsonx:decode(Body, [{format, proplist}])};
         {ok, _StatusCode, _RespHeaders, ClientRef} ->
             {ok, Body} = hackney:body(ClientRef),
             Json = jsonx:decode(Body, [{format, proplist}]),
             Type = proplists:get_value(<<"__type">>, Json),
             Message = proplists:get_value(<<"Message">>, Json),
-            ok = hackney:close(ClientRef),
+            %% ok = hackney:close(ClientRef),
             {error, {Type, Message}}
     end.
 
