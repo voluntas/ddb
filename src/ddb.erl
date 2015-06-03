@@ -152,7 +152,7 @@ typed_attribute({Key, Value}) ->
 typed_value(Value) when is_binary(Value) ->
     [{<<"S">>, Value}];
 typed_value(Value) when is_integer(Value) ->
-    [{<<"N">>, Value}].
+    [{<<"N">>, integer_to_binary(Value)}].
 
 
 -spec list_tables(#ddb_config{}) -> [binary()].
