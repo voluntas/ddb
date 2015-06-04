@@ -1,7 +1,6 @@
 .PHONY: all compile deps clean test devrel rel
 
 REBAR_CONFIG = rebar.config
-
 APP_NAME = ddb
 
 all: clean deps test
@@ -19,13 +18,13 @@ compile:
 	@./rebar -C $(REBAR_CONFIG) compile skip_deps=true
 	@./rebar -C $(REBAR_CONFIG) xref skip_deps=true
 
-devrel: rel
-	$(foreach dep,$(wildcard deps/*), rm -rf dev/$(APP_NAME)/lib/$(shell basename $(dep))-* && ln -sf $(abspath $(dep)) dev/$(APP_NAME)/lib;)
-	rm -rf dev/$(APP_NAME)/lib/$(APP_NAME)-*
-	rm -rf dev/$(APP_NAME)/lib/$(APP_NAME)
-	mkdir dev/$(APP_NAME)/lib/$(APP_NAME)
-	ln -sf $(abspath ebin) dev/$(APP_NAME)/lib/$(APP_NAME)/ebin
-	ln -sf $(abspath priv) dev/$(APP_NAME)/lib/$(APP_NAME)/priv
+
+start_dynamodb_local:
+	docker run -d -i -t --name dynamodb-local -p 8000:8000 tray/dynamodb-local -inMemory -port 8000
+
+stop_dynamodb_local:
+	docker stop dynamodb-local
+	docker rm dynamodb-local
 
 rel: compile
 	mkdir -p dev
