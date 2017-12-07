@@ -73,7 +73,7 @@ connection_local(Host, Port) ->
       }.
 
 
--spec put_item(#ddb_config{}, binary(), [{binary(), binary()}]) -> ok.
+-spec put_item(#ddb_config{}, binary(), [{binary(), binary()}]) -> ok | {error, term()}.
 put_item(Config, TableName, Item) ->
     Target = x_amz_target(put_item),
     Payload = put_item_payload(TableName, Item),
