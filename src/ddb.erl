@@ -115,7 +115,7 @@ get_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue) ->
 
 get_item_request(Config, Target, Payload) ->
     case post(Config, Target, Payload) of
-        {ok, []} ->
+        {ok, [{}]} ->
             not_found;
         {ok, Json} ->
             %% XXX(nakai): Item はあえて出している
