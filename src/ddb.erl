@@ -432,7 +432,7 @@ post(#ddb_config{
             {ok, Body} = hackney:body(ClientRef),
             Json = jsone:decode(Body, [{object_format, proplist}]),
             Type = proplists:get_value(<<"__type">>, Json),
-            Message = proplists:get_value(<<"Message">>, Json),
+            Message = proplists:get_value(<<"message">>, Json),
             hackney:close(ClientRef),
             {error, {Type, Message}}
     end.
