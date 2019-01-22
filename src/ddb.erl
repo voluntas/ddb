@@ -73,7 +73,7 @@ connection_local(Host, Port) ->
       }.
 
 
--spec put_item(#ddb_config{}, binary(), [{binary(), binary()}]) -> ok.
+-spec put_item(#ddb_config{}, binary(), [{binary(), binary()}]) -> ok | {error, term()}.
 put_item(Config, TableName, Item) ->
     Target = x_amz_target(put_item),
     Payload = put_item_payload(TableName, Item),
@@ -95,7 +95,7 @@ put_item_payload(TableName, Item) ->
     Json = [{<<"TableName">>, TableName},
             {<<"Expected">>, Expected},
             {<<"Item">>, typed_item(Item)}],
-    jsonx:encode(Json).
+    jsone:encode(Json).
 
 
 %% テーブルの主キーはhashタイプ(1要素主キー)と、hash-and-rangeタイプ(2要素で主キー)があり得る
@@ -115,7 +115,7 @@ get_item(Config, TableName, HashKey, HashValue, RangeKey, RangeValue) ->
 
 get_item_request(Config, Target, Payload) ->
     case post(Config, Target, Payload) of
-        {ok, []} ->
+        {ok, [{}]} ->
             not_found;
         {ok, Json} ->
             %% XXX(nakai): Item はあえて出している
@@ -131,14 +131,14 @@ get_item_payload(TableName, HashKey, HashValue) ->
     Json = [{<<"TableName">>, TableName},
             {<<"Key">>, typed_item([{HashKey, HashValue}])},
             {<<"ConsistentRead">>, true}],
-    jsonx:encode(Json).
+    jsone:encode(Json).
 
 get_item_payload(TableName, HashKey, HashValue, RangeKey, RangeValue) ->
     %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html
     Json = [{<<"TableName">>, TableName},
             {<<"Key">>, typed_item([{HashKey, HashValue}, {RangeKey, RangeValue}])},
             {<<"ConsistentRead">>, true}],
-    jsonx:encode(Json).
+    jsone:encode(Json).
 
 
 typed_item(Item) ->
@@ -158,7 +158,7 @@ typed_value(Value) when is_integer(Value) ->
 -spec list_tables(#ddb_config{}) -> [binary()].
 list_tables(Config) ->
     Target = x_amz_target(list_tables),
-    Payload = jsonx:encode({[]}),
+    Payload = jsone:encode({[]}),
     case post(Config, Target, Payload) of
         {ok, Json} ->
             proplists:get_value(<<"TableNames">>, Json);
@@ -209,7 +209,7 @@ create_table_payload(TableName, AttributeName, KeyType) ->
             ]]
         }
     ],
-    jsonx:encode(Json).
+    jsone:encode(Json).
 
 
 delete_item(Config, TableName, Key, Value) ->
@@ -233,7 +233,7 @@ delete_item_payload(TableName, Key, Value) when is_binary(Value) ->
 delete_item_payload(TableName, Key, Type, Value) ->
     Json = [{<<"TableName">>, TableName},
             {<<"Key">>, [{Key, [{Type, Value}]}]}],
-    jsonx:encode(Json).
+    jsone:encode(Json).
 
 
 delete_table(Config, TableName) ->
@@ -249,7 +249,7 @@ delete_table(Config, TableName) ->
 
 delete_table_payload(TableName) ->
     Json = [{<<"TableName">>, TableName}],
-    jsonx:encode(Json).
+    jsone:encode(Json).
 
 
 -spec update_item(#ddb_config{}, binary(), binary(), binary(), [{binary(), binary(), binary()}]) -> term().
@@ -284,7 +284,7 @@ update_item_payload(TableName, Key, Type, Value, AttributeUpdates) ->
     Json = [{<<"TableName">>, TableName},
             {<<"Key">>, [{Key, [{Type, Value}]}]},
             {<<"AttributeUpdates">>, AttributeUpdates1}],
-    jsonx:encode(Json).
+    jsone:encode(Json).
 
 
 -spec scan(#ddb_config{}, binary()) -> not_found | [{binary(), binary()}].
@@ -313,7 +313,7 @@ scan_payload(TableName, Limit, ExclusiveStartKey, FilterExpression, ExpressionAt
     JsonWithLimit = add_limit_to_scan_payload(Json, Limit),
     JsonWithExclusiveStartKey = add_exclusive_start_key_to_scan_payload(JsonWithLimit, ExclusiveStartKey),
     JsonWithFilter = add_filter_to_scan_payload(JsonWithExclusiveStartKey, FilterExpression, ExpressionAttributeValues),
-    jsonx:encode(JsonWithFilter).
+    jsone:encode(JsonWithFilter).
 
 
 add_limit_to_scan_payload(Json, undefined) ->
@@ -427,12 +427,12 @@ post(#ddb_config{
         {ok, 200, _RespHeaders, ClientRef} ->
             {ok, Body} = hackney:body(ClientRef),
             hackney:close(ClientRef),
-            {ok, jsonx:decode(Body, [{format, proplist}])};
+            {ok, jsone:decode(Body, [{object_format, proplist}])};
         {ok, _StatusCode, _RespHeaders, ClientRef} ->
             {ok, Body} = hackney:body(ClientRef),
-            Json = jsonx:decode(Body, [{format, proplist}]),
+            Json = jsone:decode(Body, [{object_format, proplist}]),
             Type = proplists:get_value(<<"__type">>, Json),
-            Message = proplists:get_value(<<"Message">>, Json),
+            Message = proplists:get_value(<<"message">>, Json),
             hackney:close(ClientRef),
             {error, {Type, Message}}
     end.
